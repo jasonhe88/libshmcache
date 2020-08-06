@@ -476,6 +476,140 @@ static PHP_METHOD(ShmCache, delete)
     RETURN_TRUE;
 }
 
+static struct shmcache_match_key_info *parse_search_key(
+	char *search_key, 
+        struct shmcache_match_key_info *key_info)
+{
+    if (search_key == NULL || *search_key == '\0') {
+        return NULL;
+    }
+
+    key_info->op_type = 0;
+    key_info->key = search_key;
+    key_info->length = strlen(search_key);
+    if (*search_key == '%') {
+        key_info->op_type |= SHMCACHE_MATCH_KEY_OP_RIGHT;
+        key_info->key++;
+        key_info->length--;
+        if (key_info->length == 0) {
+            return NULL;
+        }
+    }
+
+    if (key_info->key[key_info->length - 1] == '%') {
+        key_info->op_type |= SHMCACHE_MATCH_KEY_OP_LEFT;
+        key_info->length--;
+        if (key_info->length == 0) {
+            return NULL;
+        }
+    }
+
+    return key_info;
+}
+
+static PHP_METHOD(ShmCache, count)
+{
+    int result;
+    int start_offset = 0;
+    int row_count = 0;
+    int c = 0;
+    char *key_str;
+    zend_size_t key_len;
+
+    struct shmcache_hentry_array array;
+    struct shmcache_match_key_info key_info;
+    struct shmcache_match_key_info *pkey;
+
+    zval *object;
+    php_shmcache_t *i_obj;
+
+    object = getThis();
+    i_obj = (php_shmcache_t *) shmcache_get_object(object);
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|b",
+	&key_str, &key_len) == FAILURE)
+    {
+		logError("file: "__FILE__", line: %d, "
+			"zend_parse_parameters fail!", __LINE__);
+		RETURN_FALSE;
+    }
+    
+    pkey = parse_search_key(key_str, &key_info);
+
+    if ((result=shm_ht_to_array_ex(i_obj->context, &array, pkey, start_offset, row_count)) != 0)
+    {
+	RETURN_FALSE;
+    }
+    c = array.count;
+    shm_ht_free_array(&array);
+
+    RETURN_LONG(c);
+}
+
+static PHP_METHOD(ShmCache, dump)
+{
+    int result;
+    int start_offset = 0;
+    int row_count = 0;
+    char *key_str;
+    zend_size_t key_len;
+
+    struct shmcache_hentry_array array;
+    struct shmcache_hash_entry *entry;
+    struct shmcache_hash_entry *end;
+    struct shmcache_match_key_info key_info;
+    struct shmcache_match_key_info *pkey;
+
+    zval *object;
+    php_shmcache_t *i_obj;
+
+    object = getThis();
+    i_obj = (php_shmcache_t *) shmcache_get_object(object);
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|b",
+	&key_str, &key_len) == FAILURE)
+    {
+		logError("file: "__FILE__", line: %d, "
+			"zend_parse_parameters fail!", __LINE__);
+		RETURN_FALSE;
+    }
+    
+    pkey = parse_search_key(key_str, &key_info);
+
+    if ((result=shm_ht_to_array_ex(i_obj->context, &array, pkey, start_offset, row_count)) != 0)
+    {
+	RETURN_FALSE;
+    }
+
+    end = array.entries + array.count;
+
+    array_init(return_value);
+
+    for (entry=array.entries; entry<end; entry++) {
+
+	if (!shmcache_serializer_enabled(entry->value.options)) {
+		char error_info[128];
+		sprintf(error_info, "php extension: %s not enabled",
+		    shmcache_get_serializer_label(entry->value.options));
+			logError("file: "__FILE__", line: %d, %s",
+			__LINE__, error_info);
+		zend_throw_exception(shmcache_exception_ce, error_info,
+			 0 TSRMLS_CC);
+			RETURN_FALSE;
+	}
+
+	zval *val; 
+	ALLOC_INIT_ZVAL(val);
+
+	if (shmcache_unserialize(&entry->value, val) != 0) {
+		RETURN_FALSE;
+	}
+    	zend_add_assoc_zval_ex(return_value, entry->key.data, entry->key.length+1, val);
+    }
+
+    shm_ht_free_array(&array);
+}
+
 /* array ShmCache::stats([bool calc_hit_ratio = true])
  * return stats array
  */
@@ -687,6 +821,14 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_delete, 0, 0, 1)
 ZEND_ARG_INFO(0, key)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_dump, 0, 0, 1)
+ZEND_ARG_INFO(0, key)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_count, 0, 0, 1)
+ZEND_ARG_INFO(0, key)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_stats, 0, 0, 0)
 ZEND_END_ARG_INFO()
 
@@ -703,6 +845,8 @@ static zend_function_entry shmcache_class_methods[] = {
     SHMC_ME(get,          arginfo_get)
     SHMC_ME(getExpires,   arginfo_getExpires)
     SHMC_ME(delete,       arginfo_delete)
+    SHMC_ME(dump,         arginfo_dump)
+    SHMC_ME(count,        arginfo_count)
     SHMC_ME(stats,        arginfo_stats)
     SHMC_ME(clear,        arginfo_clear)
     { NULL, NULL, NULL }
