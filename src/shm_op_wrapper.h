@@ -26,7 +26,7 @@ parameters:
     err_no: return errno
 return share memory pointer, NULL for fail
 */
-void *shm_mmap(const int type, const char *filename,
+void *shm_mmap(const int type, const char *lock_filename, const char *filename,
         const int proj_id, const int64_t size, key_t *key,
         const bool create_segment, int *err_no);
 
@@ -61,7 +61,7 @@ parameters:
 	proj_id: the project id to generate key
 return: errno, 0 for success, != 0 fail
 */
-bool shm_exists(const int type, const char *filename, const int proj_id);
+bool shm_exists(const int type, const char *lock_filename, const char *filename, const int proj_id);
 
 #ifdef __cplusplus
 }

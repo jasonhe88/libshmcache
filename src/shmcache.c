@@ -382,7 +382,7 @@ int shmcache_init(struct shmcache_context *context,
     ht_segment_size = shmcache_get_ht_segment_size(context,
             &segment, &striping, &ht_capacity, ht_offsets);
 
-    ht_segemnt_exists = shm_exists(context->config.type,
+    ht_segemnt_exists = shm_exists(context->config.type, context->config.lock_filename, 
             context->config.filename, SHM_HASH_TABLE_PROJ_ID);
     if ((result=shmopt_init_segment(context, &context->segments.hashtable,
                     SHM_HASH_TABLE_PROJ_ID, ht_segment_size)) != 0)
@@ -570,6 +570,7 @@ int shmcache_load_config(struct shmcache_config *config,
     int result;
     IniContext iniContext;
     char *type;
+    char *lock_filename;
     char *filename;
     char *hash_function;
 
@@ -592,6 +593,17 @@ int shmcache_load_config(struct shmcache_config *config,
             result = EINVAL;
             break;
         }
+
+	lock_filename = iniGetStrValue(NULL, "lock_filename", &iniContext);
+	if (lock_filename == NULL || *lock_filename == '\0') {
+		logError("file: "__FILE__", line: %d, "
+			"config lock file: %s, item \"lock_filename\" is not exists",
+			__LINE__, config_filename);
+		result = ENOENT;
+		break;
+	}	
+        snprintf(config->lock_filename, sizeof(config->lock_filename),
+                "%s", lock_filename);
 
         filename = iniGetStrValue(NULL, "filename", &iniContext);
         if (filename == NULL || *filename == '\0') {
@@ -719,7 +731,6 @@ int shmcache_load_config(struct shmcache_config *config,
 
         load_log_level(&iniContext);
     } while (0);
-
     iniFreeContext(&iniContext);
     return result;
 }

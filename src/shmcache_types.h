@@ -38,6 +38,7 @@
 #define SHMCACHE_STRIPING_ALLOCATOR_POOL_DONE   1
 
 struct shmcache_config {
+    char lock_filename[MAX_PATH_SIZE];
     char filename[MAX_PATH_SIZE];
     int64_t min_memory;
     int64_t max_memory;

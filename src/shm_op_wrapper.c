@@ -132,51 +132,51 @@ void *shm_do_shmmap(const key_t key, const int64_t size,
     return addr;
 }
 
-static int shm_get_key(const char *filename, const int proj_id,
+static int shm_get_key(const char *lock_filename, const int proj_id,
         key_t *key)
 {
     int result;
-    if (access(filename, F_OK) != 0) {
+    if (access(lock_filename, F_OK) != 0) {
         result = errno != 0 ? errno : ENOENT;
         if (result != ENOENT) {
             logError("file: "__FILE__", line: %d, "
-                    "access filename: %s fail, "
+                    "access lock filename: %s fail, "
                     "errno: %d, error info: %s", __LINE__,
-                    filename, result, strerror(result));
+                    lock_filename, result, strerror(result));
             return result;
         }
 
-        result = writeToFile(filename, "FOR LOCK", 8);
+        result = writeToFile(lock_filename, "FOR LOCK", 8);
         if (result != 0) {
             return result;
         }
-        if (chmod(filename, 0666) != 0) {
+        if (chmod(lock_filename, 0666) != 0) {
             result = errno != 0 ? errno : EFAULT;
             logError("file: "__FILE__", line: %d, "
-                    "chmod filename: %s fail, "
+                    "chmod lock filename: %s fail, "
                     "errno: %d, error info: %s", __LINE__,
-                    filename, result, strerror(result));
+                    lock_filename, result, strerror(result));
             return result;
         }
     }
 
-    *key = fc_ftok(filename, proj_id);
+    *key = fc_ftok(lock_filename, proj_id);
     if (*key == -1) {
         result = errno != 0 ? errno : EFAULT;
         logError("file: "__FILE__", line: %d, "
-                "call fc_ftok fail, filename: %s, proj_id: %d, "
+                "call fc_ftok fail, lock filename: %s, proj_id: %d, "
                 "errno: %d, error info: %s", __LINE__,
-                filename, proj_id, result, strerror(result));
+                lock_filename, proj_id, result, strerror(result));
         return result;
     }
     return 0;
 }
 
-void *shm_mmap(const int type, const char *filename,
+void *shm_mmap(const int type, const char *lock_filename, const char *filename, 
         const int proj_id, const int64_t size, key_t *key,
         const bool create_segment, int *err_no)
 {
-    if ((*err_no=shm_get_key(filename, proj_id, key)) != 0) {
+    if ((*err_no=shm_get_key(lock_filename, proj_id, key)) != 0) {
         return NULL;
     }
     if (type == SHMCACHE_TYPE_MMAP) {
@@ -186,12 +186,12 @@ void *shm_mmap(const int type, const char *filename,
     }
 }
 
-bool shm_exists(const int type, const char *filename, const int proj_id)
+bool shm_exists(const int type, const char *lock_filename, const char *filename, const int proj_id)
 {
     key_t key;
     char true_filename[MAX_PATH_SIZE];
 
-    if (shm_get_key(filename, proj_id, &key) != 0) {
+    if (shm_get_key(lock_filename, proj_id, &key) != 0) {
         return false;
     }
     if (type == SHMCACHE_TYPE_MMAP) {

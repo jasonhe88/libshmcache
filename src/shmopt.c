@@ -14,7 +14,7 @@ int shmopt_init_segment(struct shmcache_context *context,
 {
     int result;
     segment->proj_id = proj_id;
-    segment->base = shm_mmap(context->config.type,
+    segment->base = shm_mmap(context->config.type, context->config.lock_filename,
             context->config.filename, proj_id, size, &segment->key,
             context->create_segment, &result);
     if (segment->base == NULL) {

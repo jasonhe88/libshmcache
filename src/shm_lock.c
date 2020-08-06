@@ -65,14 +65,14 @@ int shm_lock_file(struct shmcache_context *context)
     }
 
     old_mast = umask(0);
-    context->lock_fd = open(context->config.filename, O_WRONLY | O_CREAT, 0666);
+    context->lock_fd = open(context->config.lock_filename, O_WRONLY | O_CREAT, 0666);
     umask(old_mast);
     if (context->lock_fd < 0) {
         result = errno != 0 ? errno : EPERM;
         logError("file: "__FILE__", line: %d, "
-                "open filename: %s fail, "
+                "open lock filename: %s fail, "
                 "errno: %d, error info: %s", __LINE__,
-                context->config.filename, result, strerror(result));
+                context->config.lock_filename, result, strerror(result));
         return result;
     }
 
@@ -80,9 +80,9 @@ int shm_lock_file(struct shmcache_context *context)
         close(context->lock_fd);
         context->lock_fd = -1;
         logError("file: "__FILE__", line: %d, "
-                "lock filename: %s fail, "
+                "lock lock filename: %s fail, "
                 "errno: %d, error info: %s", __LINE__,
-                context->config.filename, result, strerror(result));
+                context->config.lock_filename, result, strerror(result));
         return result;
     }
 
